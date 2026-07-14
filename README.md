@@ -1,168 +1,204 @@
 # Smart Museum Preservation System
-### ECMC104 IIOT for Advanced Manufacturing
 
-A Raspberry Pi IoT system that continuously monitors temperature, humidity,
-and light levels in museum environments. Alerts the curator and activates a
-ventilation fan automatically when readings drift outside safe conservation ranges.
+ECMC104 IIOT for Advanced Manufacturing
 
----
-
-## Hardware Required
-
-| Component | Purpose |
-|-----------|---------|
-| Raspberry Pi 3B / 4 | Edge device & MQTT gateway |
-| BME280 (I2C) | Temperature, humidity, pressure |
-| BH1750 (I2C) | Ambient light level (lux) |
-| Active Buzzer | On-site alarm |
-| 5V Relay Module | Switches the fan circuit |
-| 5V DC Fan | Ventilation actuator |
-| Jumper wires + breadboard | Connections |
-
-## Wiring Summary
-
-```
-BME280  VCC → Pi Pin 1  (3.3V)
-BME280  SDA → Pi Pin 3  (GPIO2)
-BME280  SCL → Pi Pin 5  (GPIO3)
-BME280  GND → Pi Pin 6  (GND)
-
-BH1750  VCC  → Pi Pin 1  (3.3V)  -- shares I2C bus with BME280
-BH1750  SDA  → Pi Pin 3  (GPIO2)
-BH1750  SCL  → Pi Pin 5  (GPIO3)
-BH1750  GND  → Pi Pin 9  (GND)
-BH1750  ADDR → Pi Pin 9  (GND)   -- I2C address = 0x23
-
-Buzzer  +   → Pi Pin 11 (GPIO17) via 330Ω
-Buzzer  -   → Pi Pin 9  (GND)
-
-Relay   VCC → Pi Pin 2  (5V)
-Relay   IN  → Pi Pin 13 (GPIO27)
-Relay   GND → Pi Pin 14 (GND)
-Relay COM/NO → Fan power circuit
-```
-
-See `PROJECT_PLAN.md` for the full ASCII wiring diagram and system architecture.
+A Raspberry Pi IoT system that monitors temperature, humidity, light, and
+pressure in a museum environment. Alerts the curator and activates actuators
+(fan, buzzer, humidifier, motorized blind) when readings drift outside safe
+conservation ranges.
 
 ---
 
-## Installation
+## Quick Start — Demo on a Fresh Raspberry Pi
+
+### 1. Clone & install
 
 ```bash
-git clone <repo-url> museum_climate_control
+git clone https://github.com/asimfarooq5/museum_climate_control.git
 cd museum_climate_control
 bash install.sh
 ```
 
-The installer:
-1. Enables I2C on the Pi
-2. Installs all Python libraries (RPi.GPIO, smbus2, bme280, paho-mqtt, fastapi, uvicorn, influxdb-client)
-3. Installs and starts Mosquitto MQTT broker
-4. Installs and starts InfluxDB 2.x
-5. Installs and starts Grafana
-6. Registers `museum-sensors` and `museum-dashboard` as systemd services
+The installer does everything automatically:
+- Enables I2C
+- Installs Python packages (RPi.GPIO, smbus2, bme280, paho-mqtt, fastapi, etc.)
+- Installs & starts Mosquitto MQTT broker
+- Installs & starts InfluxDB 2.x
+- Creates `museum-sensors` and `museum-dashboard` systemd services
 
-### Post-install configuration
+> **Takes ~5 minutes.** The Pi will reboot once at the end if I2C was just enabled.
 
-1. Open `http://<pi-ip>:8086` → complete InfluxDB setup (org: `museum`, bucket: `museum_climate`)
-2. Copy the generated token into `config/settings.json` → `influxdb.token`
-3. *(Optional)* Enable email alerts in `config/settings.json` → `email` section
-4. Restart services:
-   ```bash
-   sudo systemctl restart museum-sensors museum-dashboard
-   ```
-
----
-
-## Configuration
-
-### Thresholds — `config/thresholds.json`
-```json
-{
-  "temperature": { "min": 18.0, "max": 24.0, "unit": "C" },
-  "humidity":    { "min": 45.0, "max": 60.0, "unit": "%" },
-  "light":       { "min": 0.0,  "max": 200.0,"unit": "lux" }
-}
-```
-Edit directly **or** use the web dashboard at `http://<pi-ip>:5000`.
-
-### Email alerts — `config/settings.json` → `email`
-```json
-{
-  "enabled": true,
-  "sender": "your@gmail.com",
-  "password": "your-app-password",
-  "recipients": ["curator@museum.org"],
-  "cooldown_minutes": 15
-}
-```
-Gmail requires an **App Password** (Account → Security → 2-Step Verification → App passwords).
-
----
-
-## Operation
-
-| Service | Command |
-|---------|---------|
-| Start all | `sudo systemctl start museum-sensors museum-dashboard` |
-| Stop all | `sudo systemctl stop museum-sensors museum-dashboard` |
-| View sensor log | `sudo journalctl -u museum-sensors -f` |
-| View dashboard log | `sudo journalctl -u museum-dashboard -f` |
-
-### Web interfaces
-
-| URL | Purpose |
-|-----|---------|
-| `http://<pi-ip>:5000` | Live dashboard + threshold controls (FastAPI) |
-| `http://<pi-ip>:3000` | Grafana charts (admin/admin) |
-| `http://<pi-ip>:8086` | InfluxDB admin |
-
-### Monitor MQTT messages
-```bash
-mosquitto_sub -h localhost -t "museum/#" -v
-```
-
----
-
-## Calibration
-
-The BME280 is factory-calibrated — no offset adjustment is needed for typical
-museum environments. If you notice a consistent offset (e.g., compared to a
-calibrated reference thermometer):
-
-1. Note the offset (e.g., +0.8°C)
-2. Edit `src/sensor_reader.py` → `read_bme280()` → subtract the offset from `data.temperature`
-3. Restart the sensor service
-
----
-
-## Verification & Testing
+### 2. Verify it's running
 
 ```bash
-# Confirm both sensors are detected on the I2C bus
-python3 scripts/test_sensors.py
+# Check sensor readings
+curl -s http://localhost:5000/api/readings | python3 -m json.tool
 
-# Test buzzer and fan relay
-python3 scripts/test_actuators.py
+# View live logs
+sudo journalctl -u museum-sensors -f
+```
 
-# Force a threshold breach for acceptance testing
-python3 scripts/force_alert.py temperature
-python3 scripts/force_alert.py humidity
-python3 scripts/force_alert.py light
+### 3. Open the dashboard
+
+```
+http://<pi-ip-address>:5000
 ```
 
 ---
 
-## Acceptance Criteria
+## Manual Step-by-Step (if install.sh fails or you want to do it yourself)
 
-- [x] Logs data continuously (systemd auto-restarts on crash)
-- [x] Detects temperature breach → buzzer + fan + email
-- [x] Detects humidity breach  → buzzer + fan + email
-- [x] Detects light breach     → buzzer + email
-- [x] Auto-recovery when readings return to safe range
-- [x] Grafana dashboard with real-time charts
-- [x] FastAPI dashboard for threshold adjustment without restart
-- [x] All data published over MQTT (verify with `mosquitto_sub -t "museum/#" -v`)
+### Step 1 — System setup
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv python3-smbus i2c-tools mosquitto mosquitto-clients curl wget
+sudo raspi-config nonint do_i2c 0
+```
+
+### Step 2 — Python environment
+
+```bash
+cd museum_climate_control
+python3 -m venv venv
+source venv/bin/activate
+pip install RPi.GPIO smbus2 RPi.bme280 "paho-mqtt>=1.6,<2" "influxdb-client>=1.36" "fastapi>=0.100" "uvicorn[standard]>=0.23" "jinja2>=3.1" python-multipart
+```
+
+### Step 3 — MQTT broker
+
+```bash
+sudo tee /etc/mosquitto/conf.d/museum.conf > /dev/null <<'EOF'
+listener 1883
+allow_anonymous true
+EOF
+sudo systemctl enable --now mosquitto
+sudo systemctl restart mosquitto
+```
+
+### Step 4 — InfluxDB
+
+```bash
+# Download & install
+wget -q -O /tmp/influxdb.deb https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.1-arm64.deb
+sudo dpkg -i /tmp/influxdb.deb
+sudo systemctl enable --now influxdb
+
+# Wait for it to start, then create org + bucket
+sleep 10
+curl -s -X POST http://localhost:8086/api/v2/setup \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"museum2024","org":"museum","bucket":"museum_climate"}'
+
+# Get the token from the response and paste it into config/settings.json → influxdb.token
+```
+
+### Step 5 — Start services
+
+```bash
+# Start sensor loop (with simulation mode for testing)
+cd museum_climate_control
+SIMULATE=true venv/bin/python3 src/main.py &
+
+# Start dashboard
+venv/bin/python3 -m uvicorn dashboard.app:app --host 0.0.0.0 --port 5000 &
+```
+
+### Step 6 — (Optional) Create systemd services for auto-start
+
+```bash
+sudo tee /etc/systemd/system/museum-sensors.service > /dev/null <<EOF
+[Unit]
+Description=Museum Climate Sensor Loop
+After=network.target mosquitto.service influxdb.service
+
+[Service]
+ExecStart=$(pwd)/venv/bin/python3 $(pwd)/src/main.py
+WorkingDirectory=$(pwd)/src
+Restart=always
+RestartSec=10
+User=$USER
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo tee /etc/systemd/system/museum-dashboard.service > /dev/null <<EOF
+[Unit]
+Description=Museum Climate Dashboard
+After=network.target mosquitto.service
+
+[Service]
+ExecStart=$(pwd)/venv/bin/python3 -m uvicorn dashboard.app:app --host 0.0.0.0 --port 5000
+WorkingDirectory=$(pwd)/src
+Restart=always
+RestartSec=5
+User=$USER
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now museum-sensors museum-dashboard
+```
+
+---
+
+## Hardware Wiring
+
+| Component | Pi Pin | GPIO |
+|-----------|--------|------|
+| BME280 VCC | Pin 1 (3.3V) | — |
+| BME280 SDA | Pin 3 | GPIO2 |
+| BME280 SCL | Pin 5 | GPIO3 |
+| BME280 GND | Pin 6 | GND |
+| BH1750 VCC | Pin 1 (3.3V) | — |
+| BH1750 SDA | Pin 3 | GPIO2 |
+| BH1750 SCL | Pin 5 | GPIO3 |
+| BH1750 GND | Pin 9 | GND |
+| BH1750 ADDR | Pin 9 (GND) | — (0x23) |
+| Buzzer + | Pin 11 | GPIO17 |
+| Buzzer - | Pin 9 | GND |
+| Relay VCC | Pin 2 (5V) | — |
+| Relay IN | Pin 13 | GPIO27 |
+| Relay GND | Pin 14 | GND |
+
+---
+
+## Demo Script — For Your Teacher
+
+### What to show
+
+1. **Dashboard** — open `http://<pi-ip>:5000` — show live sensor cards and charts
+2. **Thresholds** — click "Thresholds" in nav, edit a value, save
+3. **Hardware Test** — click "Hardware Test", pause sensing, test fan/buzzer
+4. **Alerts** — force a breach:
+
+```bash
+cd museum_climate_control
+SIMULATE=true venv/bin/python3 scripts/force_alert.py temperature
+```
+
+This temporarily sets the temperature max below the current reading.
+Watch the dashboard — cards turn red, buzzer beeps, alert appears.
+
+5. **Recovery** — after 30 seconds thresholds restore, alerts clear, buzzer stops.
+
+### Acceptance criteria checklist
+
+- [ ] Temperature/humidity/light/pressure displayed on dashboard
+- [ ] Charts show 1-hour history
+- [ ] Fan turns on/off from hardware test page
+- [ ] Buzzer beeps from hardware test page
+- [ ] Threshold editor saves changes
+- [ ] Alert card turns red + animation on breach
+- [ ] Alert appears in Recent Alerts table
+- [ ] MQTT messages visible: `mosquitto_sub -t "museum/#" -v`
 
 ---
 
@@ -170,29 +206,22 @@ python3 scripts/force_alert.py light
 
 ```
 museum_climate_control/
-├── PROJECT_PLAN.md       # Task plan, GPIO diagram, architecture
-├── HARDWARE.md           # Detailed wiring and parts list
-├── README.md             # This file
-├── install.sh            # One-shot installer
-├── config/
-│   ├── thresholds.json   # Safe range values (curator-editable)
-│   └── settings.json     # MQTT, InfluxDB, email, GPIO config
-├── src/
-│   ├── config.py         # Config loader
-│   ├── sensor_reader.py  # BME280 + BH1750
-│   ├── mqtt_client.py    # MQTT wrapper
-│   ├── actuators.py      # Buzzer + relay
+├── src/              # Python source code
+│   ├── main.py       # Main sensor loop — run this
+│   ├── config.py     # Configuration loader
+│   ├── sensor_reader.py  # BME280 + BH1750 reading
+│   ├── actuators.py  # GPIO control (fan, buzzer, etc.)
+│   ├── mqtt_client.py    # MQTT publish/subscribe
 │   ├── influx_writer.py  # InfluxDB writer
-│   ├── notifier.py       # Email alerts
-│   ├── main.py           # Main sensor loop
-│   └── dashboard/
-│       ├── app.py        # FastAPI dashboard
-│       ├── templates/
-│       │   └── index.html
-│       └── static/
-│           └── style.css
-└── scripts/
-    ├── test_sensors.py   # Hardware verification
-    ├── test_actuators.py # Buzzer + fan test
-    └── force_alert.py    # Force breach for demo
+│   ├── notifier.py   # Email/SMS alerts
+│   └── dashboard/    # FastAPI web dashboard
+│       ├── app.py
+│       ├── templates/  # Jinja2 HTML
+│       └── static/     # CSS + Chart.js
+├── config/           # JSON config files
+├── scripts/          # Test & utility scripts
+├── grafana/          # Grafana dashboard export
+├── install.sh        # One-shot installer
+├── pyproject.toml    # Python package metadata
+└── README.md         # This file
 ```

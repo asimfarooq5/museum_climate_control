@@ -25,8 +25,14 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+.claude/
+.commandcode/
 *.swp
 *.swo
+
+# Project junk
+projects_details/
+projects_details.zip
 
 # Temp
 *.tmp
