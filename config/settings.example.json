@@ -1,0 +1,68 @@
+{
+  "mqtt": {
+    "broker_host": "localhost",
+    "broker_port": 1883,
+    "client_id": "museum_main",
+    "keepalive": 60,
+    "topics": {
+      "temperature": "museum/sensors/temperature",
+      "humidity":    "museum/sensors/humidity",
+      "pressure":    "museum/sensors/pressure",
+      "light":       "museum/sensors/light",
+      "alerts":      "museum/alerts",
+      "fan":         "museum/actuators/fan",
+      "buzzer":      "museum/actuators/buzzer",
+      "humidifier":  "museum/actuators/humidifier",
+      "blind":       "museum/actuators/blind",
+      "thresholds":  "museum/thresholds/set",
+      "control":     "museum/control"
+    }
+  },
+  "influxdb": {
+    "url":         "http://localhost:8086",
+    "token":       "YOUR_INFLUXDB_TOKEN_HERE",
+    "org":         "museum",
+    "bucket":      "museum_climate",
+    "measurement": "climate_readings",
+    "location":    "gallery_1"
+  },
+  "gpio": {
+    "buzzer_pin":           17,
+    "relay_fan_pin":        27,
+    "relay_humidifier_pin": 22,
+    "relay_blind_pin":      24,
+    "relay_active_low":     true,
+    "buzzer_active_high":   true
+  },
+  "i2c": {
+    "bme280_address": "0x76",
+    "bh1750_address": "0x23",
+    "bus": 1
+  },
+  "email": {
+    "enabled":          false,
+    "smtp_host":        "smtp.gmail.com",
+    "smtp_port":        587,
+    "sender":           "your_email@gmail.com",
+    "password":         "YOUR_APP_PASSWORD_HERE",
+    "recipients":       ["curator@museum.org"],
+    "cooldown_minutes": 15
+  },
+  "sms": {
+    "enabled":          false,
+    "account_sid":      "YOUR_TWILIO_SID",
+    "auth_token":       "YOUR_TWILIO_AUTH_TOKEN",
+    "from_number":      "+1XXXXXXXXXX",
+    "to_number":        "+1XXXXXXXXXX",
+    "cooldown_minutes": 15
+  },
+  "sampling": {
+    "interval_seconds":              10,
+    "alert_buzzer_duration_seconds":  5
+  },
+  "dashboard": {
+    "host":  "0.0.0.0",
+    "port":  5000,
+    "debug": false
+  }
+}

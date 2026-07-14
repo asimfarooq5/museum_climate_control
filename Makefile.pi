@@ -1,0 +1,47 @@
+VENV   := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/venv
+PYTHON := $(VENV)/bin/python3
+SRC    := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/src
+
+.PHONY: help start stop restart status logs logs-dashboard test-sensors test-actuators install
+
+help:
+	@echo ""
+	@echo "Museum Climate Control — Pi Makefile"
+	@echo "--------------------------------------"
+	@echo "  make start            Start both services"
+	@echo "  make stop             Stop both services"
+	@echo "  make restart          Restart both services"
+	@echo "  make status           Show service status"
+	@echo "  make logs             Tail sensor loop log"
+	@echo "  make logs-dashboard   Tail dashboard log"
+	@echo "  make test-sensors     Run sensor hardware test"
+	@echo "  make test-actuators   Run actuator hardware test"
+	@echo "  make install          Run full installer"
+	@echo ""
+
+start:
+	sudo systemctl start museum-sensors museum-dashboard
+
+stop:
+	sudo systemctl stop museum-sensors museum-dashboard
+
+restart:
+	sudo systemctl restart museum-sensors museum-dashboard
+
+status:
+	systemctl status museum-sensors museum-dashboard --no-pager
+
+logs:
+	journalctl -u museum-sensors -f --no-pager
+
+logs-dashboard:
+	journalctl -u museum-dashboard -f --no-pager
+
+test-sensors:
+	cd $(SRC) && $(PYTHON) sensor_reader.py
+
+test-actuators:
+	cd $(SRC) && $(PYTHON) actuators.py
+
+install:
+	bash $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/install.sh

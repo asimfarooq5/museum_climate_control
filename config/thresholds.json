@@ -1,0 +1,26 @@
+{
+  "temperature": {
+    "min": 18.0,
+    "max": 38.0,
+    "unit": "C",
+    "description": "Safe range per ISO 11799 museum standard"
+  },
+  "humidity": {
+    "min": 20.0,
+    "max": 80.0,
+    "unit": "%",
+    "description": "Relative humidity safe range per ISO 11799"
+  },
+  "light": {
+    "min": 0.0,
+    "max": 300.0,
+    "unit": "lux",
+    "description": "Maximum illuminance for paintings per BS 5454"
+  },
+  "pressure": {
+    "min": 970.0,
+    "max": 1025.0,
+    "unit": "hPa",
+    "description": "Atmospheric pressure (informational)"
+  }
+}

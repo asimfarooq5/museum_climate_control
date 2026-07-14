@@ -1,0 +1,426 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Museum Climate Control — Master Stylesheet
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Reset & Base ────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+               Ubuntu, Cantarell, sans-serif;
+  background: #0f172a;  /* slate-900 */
+  color: #e2e8f0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header / Nav Bar ────────────────────────────────────────────────────── */
+
+.app-header {
+  background: #1e293b;  /* slate-800 */
+  border-bottom: 1px solid #334155;  /* slate-700 */
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: #38bdf8;  /* sky-400 */
+  font-weight: 700;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.brand-icon { font-size: 1.3rem; }
+
+.nav-bar { display: flex; align-items: center; }
+
+.nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.nav-links {
+  display: flex;
+  list-style: none;
+  gap: 0.25rem;
+}
+
+.nav-link {
+  display: block;
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: #94a3b8;  /* slate-400 */
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-link:hover {
+  color: #e2e8f0;
+  background: #334155;
+}
+
+.nav-link.active {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.nav-link.active::after {
+  content: '';
+  display: block;
+  height: 2px;
+  background: #38bdf8;
+  border-radius: 1px;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .nav-toggle { display: block; }
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 56px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+    padding: 0.5rem;
+  }
+  .nav-links.open { display: flex; }
+}
+
+/* ── Main Content Area ──────────────────────────────────────────────────── */
+
+.main-content {
+  flex: 1;
+  max-width: 1100px;
+  width: 100%;
+  margin: 1.5rem auto;
+  padding: 0 1.25rem;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.app-footer {
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.75rem;
+  color: #475569;  /* slate-600 */
+  border-top: 1px solid #1e293b;
+}
+
+/* ── Sensor Cards ────────────────────────────────────────────────────────── */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+.card-icon  { font-size: 1.8rem; }
+.card-value { font-size: 2.2rem; font-weight: 700; color: #38bdf8; margin: 0.5rem 0 0.1rem; }
+.card-unit  { font-size: 0.85rem; color: #64748b; }
+.card-label { font-size: 0.95rem; margin-top: 0.4rem; color: #cbd5e1; }
+.card-range { font-size: 0.72rem; color: #475569; margin-top: 0.3rem; }
+
+.card.alert {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50%       { box-shadow: 0 0 14px 4px rgba(239, 68, 68, 0.4); }
+}
+
+/* ── Page Card (shared component) ────────────────────────────────────────── */
+
+.page-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.page-card h2 {
+  color: #38bdf8;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* ── History Header (thin) ──────────────────────────────────────────────── */
+
+.history-header {
+  margin-bottom: 0.75rem;
+}
+
+.history-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #38bdf8;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.35rem 0;
+}
+
+.history-header h2 > span:last-child {
+  margin-left: auto;
+}
+
+/* ── Chart Section ──────────────────────────────────────────────────────── */
+
+.chart-section {
+  margin-bottom: 1.25rem;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.chart-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+}
+
+.chart-card .chart-label {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.chart-card canvas {
+  display: block;
+}
+
+/* ── Alert Log ───────────────────────────────────────────────────────────── */
+
+.alert-section {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-top: 1.25rem;
+}
+
+.alert-section h2 {
+  color: #38bdf8;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #1e293b;
+  font-size: 0.85rem;
+}
+
+th {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.alert-row td { color: #f87171; }
+.no-alerts    { color: #475569; font-style: italic; font-size: 0.9rem; }
+
+/* ── Tables (thresholds, etc.) ────────────────────────────────────────────── */
+
+input[type="number"] {
+  width: 90px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="number"]:focus {
+  border-color: #38bdf8;
+}
+
+.standard-note { font-size: 0.72rem; color: #475569; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.btn {
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn:hover { opacity: 0.85; }
+
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-success { background: #16a34a; color: #fff; }
+.btn-danger  { background: #dc2626; color: #fff; }
+.btn-warning { background: #d97706; color: #fff; }
+
+.btn-save {
+  background: #2563eb;
+  color: #fff;
+  padding: 0.5rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-save:hover { background: #1d4ed8; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.badge-on   { background: rgba(22, 163, 74, 0.15); color: #4ade80; }
+.badge-off  { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+.badge-alert { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.badge-paused { background: rgba(217, 119, 6, 0.15); color: #fbbf24; }
+
+/* ── Test Page — Sensor Grid ─────────────────────────────────────────────── */
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 600px) {
+  .sensor-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.sensor-cell {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.sensor-cell .val {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.sensor-cell .key {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+/* ── Test Page — Component Test Cards ─────────────────────────────────────── */
+
+.test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.test-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.test-card h3 {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.6rem;
+}
+
+.test-card .btn-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.test-card .status-line {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #475569;
+  min-height: 1.1em;
+}
+
+.sensor-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ── Utility ──────────────────────────────────────────────────────────────── */
+
+.text-muted { color: #64748b; }
+.text-sm    { font-size: 0.82rem; }
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }

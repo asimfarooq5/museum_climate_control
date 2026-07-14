@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Hardware Test — Museum Climate Control{% endblock %}
+
+{% block content %}
+
+<div class="page-card">
+  <h2>Sensor Loop Control</h2>
+  <div class="sensor-row">
+    <span id="sensor-status">
+      {% if sensor_paused %}
+        <span class="badge badge-paused">PAUSED</span>
+      {% else %}
+        <span class="badge badge-on">RUNNING</span>
+      {% endif %}
+    </span>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn-warning" onclick="controlSensor('pause')">Pause</button>
+      <button class="btn btn-success" onclick="controlSensor('resume')">Resume</button>
+    </div>
+  </div>
+  <p class="text-muted text-sm mt-1" id="sensor-status-msg">
+    Pause the sensor loop before testing components to avoid automatic overrides.
+  </p>
+</div>
+
+<div class="page-card">
+  <h2>Live Readings <span class="text-muted text-sm" style="font-weight:400" id="reading-fresh"></span></h2>
+  <div class="sensor-grid">
+    <div class="sensor-cell"><div class="val" id="r-temp">--</div><div class="key">Temperature (°C)</div></div>
+    <div class="sensor-cell"><div class="val" id="r-hum">--</div><div class="key">Humidity (%)</div></div>
+    <div class="sensor-cell"><div class="val" id="r-lux">--</div><div class="key">Light (lux)</div></div>
+    <div class="sensor-cell"><div class="val" id="r-press">--</div><div class="key">Pressure (hPa)</div></div>
+  </div>
+</div>
+
+<div class="test-grid">
+
+  <div class="test-card">
+    <h3>Fan &mdash; GPIO 27</h3>
+    <span class="badge {% if fan_state == 'on' %}badge-on{% else %}badge-off{% endif %}" id="fan-badge">{{ fan_state|upper }}</span>
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="testActuator('fan','on')">Turn ON</button>
+      <button class="btn btn-danger"  onclick="testActuator('fan','off')">Turn OFF</button>
+    </div>
+    <div class="status-line" id="fan-status">Controls ventilation fan relay.</div>
+  </div>
+
+  <div class="test-card">
+    <h3>Humidifier &mdash; GPIO 22</h3>
+    <span class="badge {% if humidifier_state == 'on' %}badge-on{% else %}badge-off{% endif %}" id="humidifier-badge">{{ humidifier_state|upper }}</span>
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="testActuator('humidifier','on')">Turn ON</button>
+      <button class="btn btn-danger"  onclick="testActuator('humidifier','off')">Turn OFF</button>
+    </div>
+    <div class="status-line" id="humidifier-status">Controls humidifier relay.</div>
+  </div>
+
+  <div class="test-card">
+    <h3>Buzzer &mdash; GPIO 17</h3>
+    <span class="badge badge-off" id="buzzer-badge">READY</span>
+    <div class="btn-row">
+      <button class="btn btn-warning" onclick="testBuzzer()">Beep!</button>
+    </div>
+    <div class="status-line" id="buzzer-status">Sends a beep command.</div>
+  </div>
+
+  <div class="test-card">
+    <h3>Motorized Blind &mdash; GPIO 24</h3>
+    <span class="badge {% if blind_state == 'closed' %}badge-on{% else %}badge-off{% endif %}" id="blind-badge">{{ 'CLOSED' if blind_state == 'closed' else 'OPEN' }}</span>
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="testBlind('closed')">Close</button>
+      <button class="btn btn-warning" onclick="testBlind('open')">Open</button>
+    </div>
+    <div class="status-line" id="blind-status">Controls motorized blind relay.</div>
+  </div>
+
+</div>
+
+<p class="text-muted text-sm mt-2">
+  All commands are sent via MQTT. Pause the sensor loop first to prevent automatic actuator overrides during manual tests.
+</p>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _paused = {{ 'true' if sensor_paused else 'false' }};
+
+function setStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = msg; el.style.color = ok ? '#4ade80' : '#f87171'; }
+}
+
+function setSensorBadge(paused) {
+  _paused = paused;
+  document.getElementById('sensor-status').innerHTML = paused
+    ? '<span class="badge badge-paused">PAUSED</span>'
+    : '<span class="badge badge-on">RUNNING</span>';
+}
+
+async function controlSensor(cmd) {
+  try {
+    await fetch('/api/test/sensor/' + cmd, {method:'POST'});
+    if (cmd === 'pause') {
+      setSensorBadge(true);
+      setStatus('sensor-status-msg', 'Sensing paused. Safe to test components.', true);
+    } else {
+      setSensorBadge(false);
+      setStatus('sensor-status-msg', 'Sensing resumed. Automatic alerts active.', true);
+    }
+  } catch(e) { setStatus('sensor-status-msg', 'Error: ' + e, false); }
+}
+
+async function ensurePaused() {
+  if (!_paused) {
+    await fetch('/api/test/sensor/pause', {method:'POST'});
+    setSensorBadge(true);
+    setStatus('sensor-status-msg', 'Auto-paused for manual test.', true);
+  }
+}
+
+async function testActuator(device, state) {
+  await ensurePaused();
+  try {
+    await fetch('/api/test/' + device + '/' + state, {method:'POST'});
+    const badge = document.getElementById(device + '-badge');
+    if (badge) { badge.textContent = state.toUpperCase(); badge.className = 'badge ' + (state === 'on' ? 'badge-on' : 'badge-off'); }
+    setStatus(device + '-status', device + ' \u2192 ' + state, true);
+  } catch(e) { setStatus(device + '-status', 'Error: ' + e, false); }
+}
+
+async function testBlind(state) {
+  await ensurePaused();
+  try {
+    await fetch('/api/test/blind/' + state, {method:'POST'});
+    const badge = document.getElementById('blind-badge');
+    if (badge) { badge.textContent = state === 'closed' ? 'CLOSED' : 'OPEN'; badge.className = 'badge ' + (state === 'closed' ? 'badge-on' : 'badge-off'); }
+    setStatus('blind-status', 'blind \u2192 ' + state, true);
+  } catch(e) { setStatus('blind-status', 'Error: ' + e, false); }
+}
+
+async function testBuzzer() {
+  await ensurePaused();
+  try {
+    await fetch('/api/test/buzzer', {method:'POST'});
+    const badge = document.getElementById('buzzer-badge');
+    badge.textContent = 'BEEPING'; badge.className = 'badge badge-alert';
+    setStatus('buzzer-status', 'Beep command sent!', true);
+    setTimeout(() => { badge.textContent = 'READY'; badge.className = 'badge badge-off'; }, 6000);
+  } catch(e) { setStatus('buzzer-status', 'Error: ' + e, false); }
+}
+
+async function refreshReadings() {
+  try {
+    const d = await (await fetch('/api/test/readings')).json();
+    document.getElementById('r-temp').textContent  = d.temperature !== '--' ? parseFloat(d.temperature).toFixed(1) : '--';
+    document.getElementById('r-hum').textContent   = d.humidity    !== '--' ? parseFloat(d.humidity).toFixed(1)    : '--';
+    document.getElementById('r-lux').textContent   = d.light       !== '--' ? parseFloat(d.light).toFixed(0)       : '--';
+    document.getElementById('r-press').textContent = d.pressure    !== '--' ? parseFloat(d.pressure).toFixed(1)    : '--';
+    document.getElementById('reading-fresh').textContent = 'updated ' + (d.updated_at || '--');
+  } catch(e) {}
+}
+setInterval(refreshReadings, 3000);
+refreshReadings();
+</script>
+{% endblock %}

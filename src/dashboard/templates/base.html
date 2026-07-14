@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Museum Climate Control{% endblock %}</title>
+  <link rel="stylesheet" href="{{ request.url_for('static', path='style.css') }}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <a href="/" class="brand">
+        <span class="brand-icon">🏛</span>
+        <span class="brand-text">Museum Climate Control</span>
+      </a>
+      <nav class="nav-bar">
+        <button class="nav-toggle" aria-label="Toggle navigation">&#9776;</button>
+        <ul class="nav-links">
+          <li><a href="/" class="nav-link {{ 'active' if request.url.path == '/' else '' }}">Dashboard</a></li>
+          <li><a href="/thresholds" class="nav-link {{ 'active' if request.url.path == '/thresholds' else '' }}">Thresholds</a></li>
+          <li><a href="/test" class="nav-link {{ 'active' if request.url.path == '/test' else '' }}">Hardware Test</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="app-footer">
+    <p>Smart Museum Preservation System &mdash; ECMC104 IIOT for Advanced Manufacturing</p>
+  </footer>
+
+  <script>
+    document.querySelector('.nav-toggle')?.addEventListener('click', function() {
+      document.querySelector('.nav-links')?.classList.toggle('open');
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

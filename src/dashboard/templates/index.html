@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Museum Climate Control{% endblock %}
+
+{% block head_extra %}
+<script src="{{ request.url_for('static', path='chart.min.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+
+<section class="history-header">
+  <h2>
+    Sensor History
+    <span class="text-muted text-sm">last 1 hour &middot; 1 min average</span>
+    <span class="text-muted text-sm" id="last-updated">Updated: {{ readings.updated_at }}</span>
+  </h2>
+</section>
+
+<section class="chart-section">
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-label">Temperature (°C)</div>
+      <canvas id="chart-temp" height="80"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-label">Humidity (%)</div>
+      <canvas id="chart-hum" height="80"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-label">Light (lux)</div>
+      <canvas id="chart-light" height="80"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-label">Pressure (hPa)</div>
+      <canvas id="chart-press" height="80"></canvas>
+    </div>
+  </div>
+</section>
+
+<section class="cards">
+
+  {% set temp_alert = readings.temperature != '--' and
+     (readings.temperature|float < thresholds.temperature.min or
+      readings.temperature|float > thresholds.temperature.max) %}
+  <div class="card {{ 'alert' if temp_alert }}" id="card-temperature">
+    <div class="card-icon">🌡</div>
+    <div class="card-value" id="val-temperature">{{ readings.temperature }}</div>
+    <div class="card-unit">°C</div>
+    <div class="card-label">Temperature</div>
+    <div class="card-range">Safe: {{ thresholds.temperature.min }} – {{ thresholds.temperature.max }} °C</div>
+  </div>
+
+  {% set hum_alert = readings.humidity != '--' and
+     (readings.humidity|float < thresholds.humidity.min or
+      readings.humidity|float > thresholds.humidity.max) %}
+  <div class="card {{ 'alert' if hum_alert }}" id="card-humidity">
+    <div class="card-icon">💧</div>
+    <div class="card-value" id="val-humidity">{{ readings.humidity }}</div>
+    <div class="card-unit">%</div>
+    <div class="card-label">Humidity</div>
+    <div class="card-range">Safe: {{ thresholds.humidity.min }} – {{ thresholds.humidity.max }} %</div>
+  </div>
+
+  {% set light_alert = readings.light != '--' and
+     readings.light|float > thresholds.light.max %}
+  <div class="card {{ 'alert' if light_alert }}" id="card-light">
+    <div class="card-icon">☀</div>
+    <div class="card-value" id="val-light">{{ readings.light }}</div>
+    <div class="card-unit">lux</div>
+    <div class="card-label">Light Level</div>
+    <div class="card-range">Safe: ≤ {{ thresholds.light.max }} lux</div>
+  </div>
+
+  <div class="card" id="card-pressure">
+    <div class="card-icon">⬆</div>
+    <div class="card-value" id="val-pressure">{{ readings.pressure }}</div>
+    <div class="card-unit">hPa</div>
+    <div class="card-label">Pressure</div>
+    <div class="card-range">Informational</div>
+  </div>
+
+</section>
+
+<section class="alert-section">
+  <h2>Recent Alerts</h2>
+  {% if alerts %}
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Parameter</th><th>Reading</th><th>Threshold</th><th>Direction</th></tr>
+    </thead>
+    <tbody id="alert-tbody">
+      {% for a in alerts %}
+      <tr class="alert-row">
+        <td>{{ a.time }}</td>
+        <td>{{ a.parameter.capitalize() }}</td>
+        <td>{{ a.value }}</td>
+        <td>{{ a.threshold }}</td>
+        <td>{{ a.direction|upper }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="no-alerts" id="no-alerts">No alerts recorded yet.</p>
+  {% endif %}
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const THRESH = {
+  temperature: { min: {{ thresholds.temperature.min }}, max: {{ thresholds.temperature.max }} },
+  humidity:    { min: {{ thresholds.humidity.min }},    max: {{ thresholds.humidity.max }} },
+  light:       { min: {{ thresholds.light.min }},       max: {{ thresholds.light.max }} },
+  pressure:    { min: {{ thresholds.pressure.min }},    max: {{ thresholds.pressure.max }} },
+};
+
+function isAlert(param, val) {
+  if (val === '--' || val === null) return false;
+  const v = parseFloat(val), t = THRESH[param];
+  return t && (v < t.min || v > t.max);
+}
+
+async function refresh() {
+  try {
+    const data = await (await fetch("/api/readings")).json();
+    ["temperature","humidity","light","pressure"].forEach(p => {
+      const el = document.getElementById("val-" + p);
+      if (el) el.textContent = data[p];
+      const card = document.getElementById("card-" + p);
+      if (card) card.className = "card" + (isAlert(p, data[p]) ? " alert" : "");
+    });
+    document.getElementById("last-updated").textContent = "Updated: " + data.updated_at;
+    const table = document.querySelector(".alert-section table");
+    const noAlerts = document.getElementById("no-alerts");
+    if (data.alerts !== undefined) {
+      if (data.alerts.length === 0) {
+        if (table) table.style.display = "none";
+        if (noAlerts) noAlerts.style.display = "";
+      } else {
+        if (noAlerts) noAlerts.style.display = "none";
+        let tbody = table && table.querySelector("tbody");
+        if (!tbody) {
+          const newTable = document.createElement("table");
+          newTable.innerHTML = "<thead><tr><th>Time</th><th>Parameter</th><th>Reading</th><th>Threshold</th><th>Direction</th></tr></thead><tbody></tbody>";
+          document.querySelector(".alert-section").appendChild(newTable);
+          tbody = newTable.querySelector("tbody");
+        }
+        table.style.display = "";
+        tbody.innerHTML = data.alerts.map(a =>
+          `<tr class="alert-row"><td>${a.time}</td><td>${a.parameter}</td><td>${a.value}</td><td>${a.threshold}</td><td>${a.direction.toUpperCase()}</td></tr>`
+        ).join("");
+      }
+    }
+  } catch(e) {}
+}
+setInterval(refresh, 2000);
+refresh();
+</script>
+
+<script>
+const CHART_COLORS = { temperature:"#f97316", humidity:"#3b82f6", light:"#eab308", pressure:"#22c55e" };
+const charts = {};
+
+function makeChart(id, label, color) {
+  const canvas = document.getElementById(id);
+  if (!canvas || !window.Chart) return null;
+  return new Chart(canvas, {
+    type: "line",
+    data: { labels: [], datasets: [{ label, data: [], borderColor: color, backgroundColor: color+"22",
+      borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.3 }] },
+    options: {
+      responsive: true, animation: false,
+      scales: {
+        x: { ticks: { color:"#475569", maxTicksLimit:4, maxRotation:0, font:{size:10} }, grid: { color:"#1e293b" } },
+        y: { ticks: { color:"#475569", font:{size:10} }, grid: { color:"#1e293b" } },
+      },
+      plugins: { legend: { display:false } },
+    },
+  });
+}
+
+charts.temperature = makeChart("chart-temp",  "Temp °C",   CHART_COLORS.temperature);
+charts.humidity    = makeChart("chart-hum",   "Humidity %", CHART_COLORS.humidity);
+charts.light       = makeChart("chart-light", "Light lux",  CHART_COLORS.light);
+charts.pressure    = makeChart("chart-press", "Press hPa",  CHART_COLORS.pressure);
+
+async function refreshCharts() {
+  try {
+    const data = await (await fetch("/api/history?range=1h")).json();
+    if (data.error) return;
+    for (const f of ["temperature","humidity","light","pressure"]) {
+      const c = charts[f]; if (!c) continue;
+      c.data.labels = data.time || [];
+      c.data.datasets[0].data = data[f] || [];
+      c.update();
+    }
+  } catch(e) {}
+}
+refreshCharts();
+setInterval(refreshCharts, 60000);
+</script>
+{% endblock %}
