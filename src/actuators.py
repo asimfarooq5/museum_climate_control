@@ -1,5 +1,6 @@
 import time
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,10 @@ else:
     _BUZZER_OFF = 0 if BUZZER_ACTIVE_HIGH else 1
 
 _mock_state: dict[str, int] = {}
+
+_buzzer_pulse_active = False
+_buzzer_pulse_lock = threading.Lock()
+_buzzer_pulse_stop = threading.Event()
 
 
 def _gpio_setup(pin, initial):
@@ -84,6 +89,40 @@ def buzzer_beep(duration: float = 1.0):
     buzzer_on()
     time.sleep(duration)
     buzzer_off()
+
+
+# ── Buzzer pulse (tic tic pattern) ─────────────────────────────────────────
+
+def buzzer_pulse_start():
+    """Start a daemon thread that pulses the buzzer on/off every 150ms."""
+    global _buzzer_pulse_active
+    with _buzzer_pulse_lock:
+        if _buzzer_pulse_active:
+            return
+        _buzzer_pulse_active = True
+        _buzzer_pulse_stop.clear()
+    t = threading.Thread(target=_buzzer_pulse_loop, daemon=True)
+    t.start()
+
+
+def buzzer_pulse_stop():
+    """Stop the pulse thread and turn buzzer off."""
+    global _buzzer_pulse_active
+    _buzzer_pulse_stop.set()
+    buzzer_off()
+    with _buzzer_pulse_lock:
+        _buzzer_pulse_active = False
+
+
+def _buzzer_pulse_loop():
+    """Toggle buzzer on/off every 150ms until told to stop."""
+    while not _buzzer_pulse_stop.is_set():
+        buzzer_on()
+        _buzzer_pulse_stop.wait(0.15)
+        if _buzzer_pulse_stop.is_set():
+            break
+        buzzer_off()
+        _buzzer_pulse_stop.wait(0.15)
 
 
 def fan_on():

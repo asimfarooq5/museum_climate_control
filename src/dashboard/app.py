@@ -147,9 +147,9 @@ async def update_thresholds(request: Request):
 
     for param in thresholds:
         if f"{param}_min" in form:
-            thresholds[param]["min"] = float(form[f"{param}_min"])
+            thresholds[param]["min"] = int(form[f"{param}_min"])
         if f"{param}_max" in form:
-            thresholds[param]["max"] = float(form[f"{param}_max"])
+            thresholds[param]["max"] = int(form[f"{param}_max"])
 
     save_thresholds(thresholds)
 

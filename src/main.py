@@ -22,10 +22,7 @@ _BUZZER_DURATION = Config.settings["sampling"]["alert_buzzer_duration_seconds"]
 _active_alerts:  dict[str, str] = {}
 _thresholds:     dict = load_thresholds()
 _paused:         bool = False
-_buzzer_active:  bool = False
 _shutdown_event: threading.Event = threading.Event()
-
-_buzzer_lock: threading.Lock = threading.Lock()
 
 
 # ── MQTT callbacks ────────────────────────────────────────────────────────────
@@ -77,16 +74,18 @@ def _on_control_command(topic: str, payload: dict):
         actuators.blind_open()
         logger.info("Blind → open (manual)")
     elif cmd == "buzzer_beep":
-        _start_buzzer()
-        logger.info("Buzzer beep (manual)")
+        actuators.buzzer_pulse_start()
+        threading.Timer(_BUZZER_DURATION, actuators.buzzer_pulse_stop).start()
+        logger.info("Buzzer → pulse (manual)")
 
 
 # ── Actuator logic ────────────────────────────────────────────────────────────
 
-def _update_actuators(mqtt: MQTTClient):
-    needs_fan        = bool(_active_alerts)
-    needs_humidifier = _active_alerts.get("humidity") == "low"
-    needs_blind      = _active_alerts.get("light")    == "high"
+def _update_actuators(alerts: dict, mqtt: MQTTClient):
+    """Set fan/humidifier/blind based on *alerts* (the current breach dict)."""
+    needs_fan        = bool(alerts)
+    needs_humidifier = alerts.get("humidity") == "low"
+    needs_blind      = alerts.get("light")    == "high"
 
     if needs_fan:
         actuators.fan_on()
@@ -109,48 +108,18 @@ def _update_actuators(mqtt: MQTTClient):
         actuators.blind_open()
         mqtt.publish_actuator("blind", "open")
 
-
-# ── Buzzer thread guard ───────────────────────────────────────────────────────
-
-def _buzzer_task(duration: float):
-    """Run buzzer for *duration* seconds, then clear the guard flag."""
-    global _buzzer_active
-    try:
-        actuators.buzzer_beep(duration)
-    finally:
-        with _buzzer_lock:
-            _buzzer_active = False
-
-
-def _start_buzzer():
-    """Start buzzer thread unless one is already running."""
-    global _buzzer_active
-    with _buzzer_lock:
-        if _buzzer_active:
-            return
-        _buzzer_active = True
-    threading.Thread(
-        target=_buzzer_task, args=(_BUZZER_DURATION,), daemon=True
-    ).start()
-
-
-def _stop_buzzer():
-    """Force buzzer off and reset the guard."""
-    global _buzzer_active
-    actuators.buzzer_off()
-    with _buzzer_lock:
-        _buzzer_active = False
+    # Buzzer: pulsing tic-tic while any alert active
+    if needs_fan:
+        actuators.buzzer_pulse_start()
+        mqtt.publish_actuator("buzzer", "on")
+    else:
+        actuators.buzzer_pulse_stop()
+        mqtt.publish_actuator("buzzer", "off")
 
 
 # ── Threshold evaluation (pure logic, no side effects) ────────────────────────
 
 def _evaluate_thresholds(readings: dict) -> dict[str, str]:
-    """Compare each reading against thresholds.
-
-    Returns ``{parameter_name: "low" | "high"}`` for every parameter whose
-    current value is outside its safe range.  Pressure is included but
-    informational only — no actuators ever respond to it.
-    """
     alerts: dict[str, str] = {}
     for param, value in readings.items():
         if param not in _thresholds:
@@ -177,8 +146,7 @@ def _detect_state_changes(new_alerts: dict) -> tuple[set, set]:
 
 def _handle_new_breaches(newly_breached: set, new_alerts: dict,
                          readings: dict, mqtt: MQTTClient):
-    """Publish MQTT alerts, send notifications, and start buzzer for newly
-    breached parameters."""
+    """Publish MQTT alerts and send notifications for newly breached params."""
     for param in newly_breached:
         direction  = new_alerts[param]
         t_boundary = (_thresholds[param]["max"] if direction == "high"
@@ -190,14 +158,10 @@ def _handle_new_breaches(newly_breached: set, new_alerts: dict,
         mqtt.publish_alert(param, value, t_boundary, direction)
         notifier.send_alert(param, value, t_boundary, direction)
 
-    if newly_breached and not _paused:
-        _start_buzzer()
-        mqtt.publish_actuator("buzzer", "on")
-
 
 def _handle_recoveries(recovered: set, new_alerts: dict,
                        readings: dict, mqtt: MQTTClient):
-    """Log recovered parameters and stop buzzer if all alerts cleared."""
+    """Log recovered parameters."""
     for param in recovered:
         logger.info("RECOVERY: %s is back within safe range", param)
 
@@ -205,10 +169,6 @@ def _handle_recoveries(recovered: set, new_alerts: dict,
         if param not in recovered:
             logger.info("Ongoing alert: %s=%.2f (%s)",
                         param, readings[param], direction)
-
-    if not new_alerts and recovered:
-        _stop_buzzer()
-        logger.info("All parameters in safe range — actuators deactivated")
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
@@ -237,10 +197,8 @@ def _main_loop(sensors, mqtt, db):
     new_alerts = _evaluate_thresholds(readings)
     newly_breached, recovered = _detect_state_changes(new_alerts)
 
-    has_change = bool(newly_breached or recovered)
-
-    if has_change:
-        _update_actuators(mqtt)
+    # Drive actuators based on current alerts (every cycle)
+    _update_actuators(new_alerts, mqtt)
 
     if newly_breached:
         _handle_new_breaches(newly_breached, new_alerts, readings, mqtt)
@@ -284,7 +242,7 @@ def main():
 
     # ── Graceful shutdown ─────────────────────────────────────────────────────
     logger.info("Shutting down — cleaning up actuators and connections ...")
-    _stop_buzzer()
+    actuators.buzzer_pulse_stop()
     actuators.fan_off()
     actuators.humidifier_off()
     actuators.blind_open()

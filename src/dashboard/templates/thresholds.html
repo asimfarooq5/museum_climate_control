@@ -14,8 +14,8 @@
         {% for param, vals in thresholds.items() %}
         <tr>
           <td>{{ param.capitalize() }}</td>
-          <td><input type="number" step="0.1" name="{{ param }}_min" value="{{ vals.min }}"></td>
-          <td><input type="number" step="0.1" name="{{ param }}_max" value="{{ vals.max }}"></td>
+          <td><input type="number" step="1" name="{{ param }}_min" value="{{ vals.min | int }}"></td>
+          <td><input type="number" step="1" name="{{ param }}_max" value="{{ vals.max | int }}"></td>
           <td>{{ vals.unit }}</td>
           <td class="standard-note">{{ vals.get('description', '') }}</td>
         </tr>
