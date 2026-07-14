@@ -27,6 +27,7 @@ Thumbs.db
 .idea/
 .claude/
 .commandcode/
+.cmd/
 *.swp
 *.swo
 
