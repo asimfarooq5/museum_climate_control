@@ -34,11 +34,13 @@ def _on_threshold_change(topic: str, payload: dict):
         logger.warning("Unknown threshold parameter: %s", param)
         return
     if "min" in payload:
-        _thresholds[param]["min"] = float(payload["min"])
+        _thresholds[param]["min"] = int(payload["min"])
     if "max" in payload:
-        _thresholds[param]["max"] = float(payload["max"])
-    save_thresholds(_thresholds)
-    logger.info("Threshold updated: %s → min=%.1f max=%.1f",
+        _thresholds[param]["max"] = int(payload["max"])
+    # Don't save to disk here — the dashboard already saved it before
+    # publishing the MQTT message. Saving a second time races with the
+    # dashboard reading the file and corrupts thresholds.json.
+    logger.info("Threshold updated: %s → min=%d max=%d",
                 param, _thresholds[param]["min"], _thresholds[param]["max"])
 
 
@@ -51,7 +53,7 @@ def _on_control_command(topic: str, payload: dict):
         actuators.fan_off()
         actuators.humidifier_off()
         actuators.blind_open()
-        actuators.buzzer_off()
+        actuators.buzzer_pulse_stop()
     elif cmd == "resume":
         _paused = False
         logger.info("Sensor loop RESUMED")
@@ -108,12 +110,14 @@ def _update_actuators(alerts: dict, mqtt: MQTTClient):
         actuators.blind_open()
         mqtt.publish_actuator("blind", "open")
 
-    # Buzzer: pulsing tic-tic while any alert active
-    if needs_fan:
+    # Buzzer + LEDs: follow any active alert
+    if alerts:
         actuators.buzzer_pulse_start()
+        actuators.led_alert()
         mqtt.publish_actuator("buzzer", "on")
     else:
         actuators.buzzer_pulse_stop()
+        actuators.led_normal()
         mqtt.publish_actuator("buzzer", "off")
 
 
@@ -175,40 +179,51 @@ def _handle_recoveries(recovered: set, new_alerts: dict,
 
 def _main_loop(sensors, mqtt, db):
     """Single iteration: read, publish, store, check thresholds."""
-    readings = sensors.read_all()
-    logger.info(
-        "Readings — Temp:%.1f°C  Hum:%.1f%%  "
-        "Press:%.1f hPa  Light:%.0f lux",
-        readings["temperature"],
-        readings["humidity"],
-        readings["pressure"],
-        readings["light"],
-    )
-
-    for param, value in readings.items():
-        mqtt.publish_sensor(param, value)
-
     try:
-        db.write(**readings)
-    except Exception as db_exc:
-        logger.error("InfluxDB write failed: %s", db_exc)
+        readings = sensors.read_all()
+        logger.info(
+            "Readings — Temp:%.1f°C  Hum:%.1f%%  "
+            "Press:%.1f hPa  Light:%.0f lux",
+            readings["temperature"],
+            readings["humidity"],
+            readings["pressure"],
+            readings["light"],
+        )
+
+        for param, value in readings.items():
+            mqtt.publish_sensor(param, value)
+
+        try:
+            db.write(**readings)
+        except Exception:
+            pass
+    except Exception as exc:
+        logger.error("Sensor read/publish error: %s", exc, exc_info=True)
+        readings = None
 
     # ── Alert logic ───────────────────────────────────────────────────────────
-    new_alerts = _evaluate_thresholds(readings)
-    newly_breached, recovered = _detect_state_changes(new_alerts)
+    try:
+        if readings is not None:
+            new_alerts = _evaluate_thresholds(readings)
+        else:
+            new_alerts = {}
+        newly_breached, recovered = _detect_state_changes(new_alerts)
 
-    # Drive actuators based on current alerts (every cycle)
-    _update_actuators(new_alerts, mqtt)
+        # Drive actuators based on current alerts (every cycle)
+        _update_actuators(new_alerts, mqtt)
 
-    if newly_breached:
-        _handle_new_breaches(newly_breached, new_alerts, readings, mqtt)
+        if newly_breached:
+            _handle_new_breaches(newly_breached, new_alerts, readings or {}, mqtt)
+        if recovered:
+            _handle_recoveries(recovered, new_alerts, readings or {}, mqtt)
 
-    if recovered:
-        _handle_recoveries(recovered, new_alerts, readings, mqtt)
-
-    # Persist new alert state
-    _active_alerts.clear()
-    _active_alerts.update(new_alerts)
+        # Persist new alert state
+        _active_alerts.clear()
+        _active_alerts.update(new_alerts)
+    except Exception as exc:
+        logger.error("Threshold/actuator error: %s — turning all actuators off", exc, exc_info=True)
+        _update_actuators({}, mqtt)
+        _active_alerts.clear()
 
 
 def main():

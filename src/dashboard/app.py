@@ -5,7 +5,7 @@ import os
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -19,6 +19,12 @@ app = FastAPI(title="Museum Climate Dashboard", docs_url=None, redoc_url=None)
 _DIR      = os.path.dirname(__file__)
 templates = Jinja2Templates(directory=os.path.join(_DIR, "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(_DIR, "static")), name="static")
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse(os.path.join(_DIR, "static", "favicon.svg"))
+
 
 TOPICS = Config.settings["mqtt"]["topics"]
 

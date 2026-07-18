@@ -18,8 +18,10 @@ BUZZER_PIN        = _CFG["buzzer_pin"]
 FAN_RELAY_PIN     = _CFG["relay_fan_pin"]
 HUMIDIFIER_PIN    = _CFG.get("relay_humidifier_pin", 22)
 BLIND_RELAY_PIN   = _CFG.get("relay_blind_pin",   24)
-RELAY_ACTIVE_LOW  = _CFG["relay_active_low"]
+RELAY_ACTIVE_LOW   = _CFG["relay_active_low"]
 BUZZER_ACTIVE_HIGH = _CFG.get("buzzer_active_high", True)
+LED_GREEN_PIN      = _CFG.get("led_green_pin", 5)
+LED_RED_PIN        = _CFG.get("led_red_pin", 6)
 
 if not _MOCK:
     _RELAY_ON  = GPIO.LOW  if RELAY_ACTIVE_LOW else GPIO.HIGH
@@ -67,6 +69,8 @@ def setup():
     _gpio_setup(FAN_RELAY_PIN,   _RELAY_OFF)
     _gpio_setup(HUMIDIFIER_PIN,  _RELAY_OFF)
     _gpio_setup(BLIND_RELAY_PIN, _RELAY_OFF)
+    _gpio_setup(LED_GREEN_PIN,   1)  # green on at startup
+    _gpio_setup(LED_RED_PIN,     0)
     logger.info("GPIO initialised (mock=%s)", _MOCK)
 
 
@@ -75,8 +79,21 @@ def cleanup():
     fan_off()
     humidifier_off()
     blind_open()
+    led_normal()
     if not _MOCK:
         GPIO.cleanup()
+
+
+def led_normal():
+    """Green on, red off — no active alerts."""
+    _gpio_output(LED_GREEN_PIN, 1)
+    _gpio_output(LED_RED_PIN,   0)
+
+
+def led_alert():
+    """Red on, green off — alert active."""
+    _gpio_output(LED_GREEN_PIN, 0)
+    _gpio_output(LED_RED_PIN,   1)
 
 
 def buzzer_on():
