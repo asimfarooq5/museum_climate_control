@@ -163,10 +163,10 @@ sudo systemctl enable --now museum-sensors museum-dashboard
 | BH1750 GND | Pin 9 | GND |
 | BH1750 ADDR | Pin 9 (GND) | — (0x23) |
 | Buzzer + | Pin 11 | GPIO17 |
-| Buzzer − | Pin 9 | GND |
-| Fan Relay VCC | Pin 2 (5V) | — |
-| Fan Relay IN | Pin 13 | GPIO27 |
-| Fan Relay GND | Pin 14 | GND |
+| Buzzer - | Pin 9 | GND |
+| Relay VCC | Pin 2 (5V) | — |
+| Relay IN | Pin 13 | GPIO27 |
+| Relay GND | Pin 14 | GND |
 | Humidifier Relay IN | Pin 15 | GPIO22 |
 | Blind Relay IN | Pin 18 | GPIO24 |
 | LED Green + | Pin 29 | GPIO5 |
